@@ -1,93 +1,234 @@
 #include <iostream>
 #include <string>
+#include <set>
+#include <utility>
 #include <vector>
+#include <sstream>
+#include <exception>
 
-template <typename T>
-void printVec(std::vector<T> vec) {
-  std::cout << "length = " << vec.size() << " || ";
-  for (int i = 0; i < vec.size(); ++i) {
-    std::cout << vec[i];
-    if (i < vec.size() - 1) {
-      std::cout << " | ";
+class BadInputException : public std::exception {
+private:
+    std::string message;
+
+public:
+    BadInputException(const std::string& msg) : message(msg) {}
+
+    virtual const char* what() const noexcept override {
+        return message.c_str();
     }
+};
+
+enum symbol {
+  IGNORE = '.',
+  OLD_NUMBER = 'X',
+  GEAR = '*'
+};
+
+std::vector<std::pair<int, int>> neighbours = {
+  {0,-1},
+  {0,1},
+  {-1,0},
+  {1,0},
+  {1,1},
+  {1,-1},
+  {-1,1},
+  {-1,-1}
+};
+
+void printRepr(const std::vector<std::vector<char>>& repr) {
+  for (int i = 0; i < repr.size(); ++i) {
+    for (int j = 0; j < repr[i].size(); ++j) {
+      std::cout << repr[i][j] << " ";
+    }
+    std::cout << std::endl;
+  }
+}
+
+void printSet(const std::set<std::pair<int,int>>& set) {
+  for (std::set<std::pair<int,int>>::iterator it = set.begin(); it != set.end(); ++it) {
+    std::cout << it->first << "," << it->second;
+    if (it != std::prev(set.end(), 1))
+      std::cout << " | ";
   }
   std::cout << std::endl;
 }
 
-std::vector<std::string> split(std::string s, char delim) {
-  std::vector<std::string> result = {""};
-  for (int i = 0; i < s.length(); ++i) {
-    if (s[i] == delim) {
-      result.push_back("");
-    } else {
-      result[result.size()-1] += s[i];
+bool hasSpecialNeighbours(int row, int col, const std::vector<std::vector<char>>& repr) {
+  if (row >= repr.size() || col >= repr[row].size()) {
+    throw BadInputException("row or col was out of bounds!");
+  }
+  int newRow;
+  int newCol;
+  for (int i = 0; i < neighbours.size(); ++i) {
+    newRow = row + neighbours[i].first;
+    newCol = col + neighbours[i].second;
+    if (newRow < 0 || newRow == repr.size() || newCol < 0 || newCol == repr[newRow].size()) {
+      continue;
+    } else if (
+      repr[newRow][newCol] != OLD_NUMBER &&
+      repr[newRow][newCol] != IGNORE &&
+      !isdigit(repr[newRow][newCol])
+    ) {
+      return true;
     }
+  }
+  return false;
+}
+
+int getNumber(int row, int col, const std::vector<std::vector<char>>& repr) {
+  if (row >= repr.size() || col >= repr[row].size() || !isdigit(repr[row][col])) {
+    throw BadInputException("row or col was out of bounds!");
+  }
+  while (col > 0 && isdigit(repr[row][col-1])) {
+    col -= 1;
+  }
+  int number = 0;
+  int digit;
+  while (col < repr[row].size() && isdigit(repr[row][col])) {
+    digit = repr[row][col] - '0';
+    number *= 10;
+    number += digit;
+    col += 1;
+  }
+  return number;
+}
+
+void flushNumber(int row, int col, std::vector<std::vector<char>>& repr) {
+  if (row >= repr.size() || col >= repr[row].size() || !isdigit(repr[row][col])) {
+    throw BadInputException("row or col was out of bounds!");
+  }
+  while (col > 0 && isdigit(repr[row][col-1])) {
+    col -= 1;
+  }
+  while (col < repr[row].size() && isdigit(repr[row][col])) {
+    repr[row][col] = OLD_NUMBER;
+    col += 1;
+  }
+}
+
+std::vector<std::pair<int,int>> getNumberIndices(int row, int col, const std::vector<std::vector<char>>& repr) {
+  if (row >= repr.size() || col >= repr[row].size() || !isdigit(repr[row][col])) {
+    throw BadInputException("row or col was out of bounds!");
+  }
+  while (col > 0 && isdigit(repr[row][col-1])) {
+    col -= 1;
+  }
+  std::vector<std::pair<int,int>> result;
+  while (col < repr[row].size() && isdigit(repr[row][col])) {
+    result.push_back({row, col});
+    col += 1;
   }
   return result;
 }
 
-std::string trimLeft(std::string s) {
-  while (s[0] == ' ') {
-    s = s.erase(0, 1);
+bool isOutlawedNumber(
+  int row, 
+  int col, 
+  const std::vector<std::vector<char>>& repr, 
+  const std::set<std::pair<int,int>>& outlawedIndices
+) {
+  if (row >= repr.size() || col >= repr[row].size() || !isdigit(repr[row][col])) {
+    throw BadInputException("row or col was out of bounds!");
   }
-  return s;
-}
-
-std::string trimRight(std::string s) {
-  while (s[s.length()-1] == ' ') {
-    s.pop_back();
+  std::vector<std::pair<int,int>> numberIndices = getNumberIndices(row, col, repr);
+  for (int i = 0; i < numberIndices.size(); ++i) {
+    if (outlawedIndices.find(numberIndices[i]) != outlawedIndices.end())
+      return true;
   }
-  return s;
+  return false;
 }
 
-std::string trim(std::string s) {
-  return trimLeft(trimRight(s));
+void addOutlawedIndices(
+  int row, 
+  int col, 
+  const std::vector<std::vector<char>>& repr, 
+  std::set<std::pair<int,int>>& outlawedIndices
+) {
+  if (row >= repr.size() || col >= repr[row].size() || !isdigit(repr[row][col])) {
+    throw BadInputException("row or col was out of bounds!");
+  }
+  std::vector<std::pair<int,int>> numberIndices = getNumberIndices(row, col, repr);
+  for (int i = 0; i < numberIndices.size(); ++i) {
+    outlawedIndices.insert({numberIndices[i].first, numberIndices[i].second});
+  }
 }
 
-
-std::vector<int> parseBagString(std::string bagString) {
-  std::vector<int> result = {0, 0, 0};
-  std::vector<std::string> blockStrings = split(bagString, ',');
-  for (int i = 0; i < blockStrings.size(); ++i) {
-    std::string trimmedBlockString = trim(blockStrings[i]);
-    std::vector<std::string> blockStringSplit = split(trimmedBlockString, ' ');
-    int val = std::stoi(blockStringSplit[0]);
-    std::string colour = blockStringSplit[1];
-    if (colour == "blue") {
-      result[0] = val;
-    } else if (colour == "red") {
-      result[1] = val;
-    } else if (colour == "green") {
-      result[2] = val;
-    } else {
-      throw "bad colour supplied";
+int getGearRatio(int row, int col, const std::vector<std::vector<char>>& repr) {
+  if (row >= repr.size() || col >= repr[row].size() || repr[row][col] != GEAR) {
+    throw BadInputException("row or col was out of bounds!");
+  }
+  std::set<std::pair<int,int>> outlawedIndices;
+  int numNumbers = 0;
+  int newRow;
+  int newCol;
+  int product = 1;
+  for (int i = 0; i < neighbours.size(); ++i) {
+    newRow = row + neighbours[i].first;
+    newCol = col + neighbours[i].second;
+    if (newRow < 0 || newRow == repr.size() || newCol < 0 || newCol == repr[newRow].size()) {
+      continue;
+    } else if (
+      isdigit(repr[newRow][newCol]) &&
+      !isOutlawedNumber(newRow, newCol, repr, outlawedIndices)
+    ) {
+      // std::cout << getNumber(newRow, newCol, repr) << std::endl;
+      // get the number, multiply it to the product, outlaw its indices, add one to numNumbers
+      product *= getNumber(newRow, newCol, repr);
+      addOutlawedIndices(newRow, newCol, repr, outlawedIndices);
+      numNumbers += 1;
     }
   }
-  return result;
+  if (numNumbers != 2) {
+    return 0;
+  } else {
+    return product;
+  }
+  return false;
 }
 
+int partOne(std::vector<std::vector<char>> repr) {
+  char cur;
+  int a;
+  int sum = 0;
+  for (int i = 0; i < repr.size(); ++i) {
+    for (int j = 0; j < repr[i].size(); ++j) {
+      cur = repr[i][j];
+      if (isdigit(cur) && hasSpecialNeighbours(i,j,repr)) {
+        a = getNumber(i,j,repr);
+        flushNumber(i,j,repr);
+        sum += a;
+      }
+    }
+  }
+  return sum;
+}
+
+int partTwo(std::vector<std::vector<char>> repr) {
+  char cur;
+  int a;
+  int sum = 0;
+  for (int i = 0; i < repr.size(); ++i) {
+    for (int j = 0; j < repr[i].size(); ++j) {
+      cur = repr[i][j];
+      if (cur == GEAR)
+        sum += getGearRatio(i, j, repr);
+    }
+  }
+  return sum;
+}
 
 int main() {
   std::string line;
-  int sum = 0;
-
+  std::vector<std::vector<char>> repr;
+  char cur;
   while(std::getline(std::cin, line)) {
-    std::vector<std::string> splitOnColon = split(line, ':');
-    std::vector<std::string> splitFirstOnSpace = split(splitOnColon[0], ' ');
-    int gameId = std::stoi(splitFirstOnSpace[1]);
-    std::vector<std::string> bagStrings = split(splitOnColon[1], ';');
-    
-    std::vector<int> maxCounts = {0, 0, 0};
-    for (int i = 0; i < bagStrings.size(); ++i) {
-      std::vector<int> blockCounts = parseBagString(bagStrings[i]);
-      assert(blockCounts.size() == 3);
-      for (int j = 0; j < 3; ++j) {
-        if (maxCounts[j] < blockCounts[j]) {
-          maxCounts[j] = blockCounts[j];
-        }
-      }
+    std::stringstream lineStream(line);
+    std::vector<char> lineVec;
+    while (lineStream >> cur) {
+      lineVec.push_back(cur);
     }
-    sum += maxCounts[0] * maxCounts[1] * maxCounts[2];
+    repr.push_back(lineVec);
   }
+  int sum = partTwo(repr);
   std::cout << sum << std::endl;
 }
