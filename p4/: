@@ -1,0 +1,93 @@
+#include <cmath>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <set>
+
+template <typename T>
+void printVec(std::vector<T> vec) {
+  std::cout << "length = " << vec.size() << " || ";
+  for (int i = 0; i < vec.size(); ++i) {
+    std::cout << vec[i];
+    if (i < vec.size() - 1) {
+      std::cout << " | ";
+    }
+  }
+  std::cout << std::endl;
+}
+
+void printSet(const std::set<int>& set) {
+  for (std::set<int>::iterator it = set.begin(); it != set.end(); ++it) {
+    std::cout << *it;
+    if (it != std::prev(set.end(), 1))
+      std::cout << ",";
+  }
+  std::cout << std::endl;
+}
+
+std::vector<std::string> split(std::string s, char delim) {
+  std::vector<std::string> result = {""};
+  for (int i = 0; i < s.length(); ++i) {
+    if (s[i] == delim) {
+      result.push_back("");
+    } else {
+      result[result.size()-1] += s[i];
+    }
+  }
+  return result;
+}
+
+std::string trimLeft(std::string s) {
+  while (s[0] == ' ') {
+    s = s.erase(0, 1);
+  }
+  return s;
+}
+
+std::string trimRight(std::string s) {
+  while (s[s.length()-1] == ' ') {
+    s.pop_back();
+  }
+  return s;
+}
+
+std::string trim(std::string s) {
+  return trimLeft(trimRight(s));
+}
+
+std::set<int> parseNumStringIntoSet(std::string numString) {
+  // std::cout << "parseNumStringIntoSet " << numString << std::endl;
+  std::stringstream numStringStream(numString);
+  int cur;
+  std::set<int> result;
+  while (numStringStream >> cur)
+    result.insert(cur);
+  return result;
+}
+
+int main() {
+  std::string line;
+  long double sum = 0;
+  long double power;
+  while(std::getline(std::cin, line)) {
+    std::vector<std::string> splitOnColon = split(line, ':');
+    std::vector<std::string> splitOnBar = split(splitOnColon[1], '|');
+
+    std::set<int> winningNumbers = parseNumStringIntoSet(splitOnBar[0]);
+    std::set<int> candidateNumbers = parseNumStringIntoSet(splitOnBar[1]);
+
+    // printSet(winningNumbers);
+    // printSet(candidateNumbers);
+
+    power = -1;
+    for (std::set<int>::iterator it = winningNumbers.begin(); it != winningNumbers.end(); ++it) {
+      if (candidateNumbers.find(*it) != candidateNumbers.end())
+        power += 1;
+    }
+    std::cout << power << std::endl;
+    if (power != -1)
+      sum += std::pow(2, power);
+  }
+  std::cout << sum << std::endl;
+}
